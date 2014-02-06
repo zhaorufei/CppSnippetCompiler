@@ -33,6 +33,7 @@ let s:VS2008_Install_DIR= 'D:\Program Files\Microsoft Visual Studio 9.0\'
 let s:VS2010_Install_DIR= 'C:\Program Files (x86)\Microsoft Visual Studio 10.0\'
 let s:VS_Install_DIR    = s:VS2010_Install_DIR
 let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
+let s:cl_x64_full_path  = s:VS_Install_DIR . 'VC\Bin\amd64\cl.exe'
 " Intel ICC compiler
 let s:ICC_Install_DIR   = 'C:\Program Files\Intel\Compiler\11.1\048\'
 let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
@@ -69,11 +70,11 @@ endfunction
 "    Calling it more than once is OK
 "    Many of the environment variable must same as vcvars32.bat
 function! <SID>:Set_ICC_Working_Env_Variable()
-	" Intel icl 11.1 version only works well with VC2008
-	call <SID>:Set_VC_Working_Env_Variable(s:VS2008_Install_DIR)
-	let $PATH    = s:ICC_Install_DIR . 'bin\ia32;' . $PATH
-	let $INCLUDE = s:ICC_Install_DIR . 'include;' . $INCLUDE
-	let $LIB     = s:ICC_Install_DIR . 'lib\ia32;'. $LIB
+    " Intel icl 11.1 version only works well with VC2008
+    call <SID>:Set_VC_Working_Env_Variable(s:VS2008_Install_DIR)
+    let $PATH    = s:ICC_Install_DIR . 'bin\ia32;' . $PATH
+    let $INCLUDE = s:ICC_Install_DIR . 'include;' . $INCLUDE
+    let $LIB     = s:ICC_Install_DIR . 'lib\ia32;'. $LIB
 endfunction
 
 function! <SID>:Set_JAVA_Working_Env_Variable()
@@ -84,7 +85,7 @@ endfunction
 "    function set the appropriate environment variable PATH, INCLUDE, LIB to
 "    make cl.exe works well
 "    Calling it more than once is OK
-"    Many of the environment variable must same as vcvars32.bat
+"    Most of the environment variable must be same as vcvars32.bat
 function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
   let add_path =[a:vc_inst_dir . 'Common7\IDE;' ,
     \ a:vc_inst_dir . 'VC\BIN;' ,
@@ -139,14 +140,80 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
 endfunction
 
 " Description:
+"    the script heavily depends on the Visual C++'s tools, this
+"    function set the appropriate environment variable PATH, INCLUDE, LIB to
+"    make cl.exe works well
+"    Calling it more than once is OK
+"    Most of the environment variable must be same as vcvars32.bat
+function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
+  let add_path =[a:vc_inst_dir . 'VC\BIN\amd64;' ,
+    \ a:vc_inst_dir . 'Common7\IDE;' ,
+    \ a:vc_inst_dir . 'Common7\Tools;' ,
+    \ a:vc_inst_dir . 'VC\VCPackages;' ]
+  " Reset PATH to the origin PATH environment variable
+  let $PATH = s:origin_PATH
+  for p in add_path
+    " ChangeLog: Always prepend to $PATH
+    "if ( $PATH !~? escape(p, '\') )
+      let $PATH= p . $PATH
+    "endif
+  endfor
+
+  let add_path = [a:vc_inst_dir . 'VC\ATLMFC\INCLUDE;' ,
+    \ a:vc_inst_dir . 'VC\INCLUDE;' ,
+    \ s:Win_SDK_DIR    . 'include;' ,
+    \ s:Boost_root . ';' ]
+  let $INCLUDE = s:origin_INCLUDE
+  for p in add_path
+    " ChangeLog: Always prepend to $INCLUDE
+    " if ( $INCLUDE !~? '\%(^\|;\)' . escape(p, '\') )
+      let $INCLUDE = p . $INCLUDE
+    "endif
+  endfor
+
+  let add_path = [
+    \ a:vc_inst_dir . 'VC\ATLMFC\LIB\amd64;' ,
+    \ a:vc_inst_dir . 'VC\LIB\amd64;' ,
+    \ s:Win_SDK_DIR    . 'LIB\x64;' ,
+    \ s:Boost_root     . 'LIB;' ]
+  let $LIB = s:origin_LIB
+  for p in add_path
+    " ChangeLog: Always prepend to $LIB
+    " if ( $LIB !~? '\%(^\|;\)' . escape(p, '\')  )
+      let $LIB = p . $LIB
+    "endif
+  endfor
+
+  " for managed C++/CLI #using statement
+  let add_path = [
+    \ a:vc_inst_dir . 'VC\ATLMFC\LIB\amd64;' ,
+    \ a:vc_inst_dir . 'VC\LIB\amd64;' ]
+  let $LIBPATH = s:origin_LIBPATH
+  for p in add_path
+    " ChangeLog: Always prepend to $LIBPATH
+    " if ( $LIBPATH !~? '\%(^\|;\)' . escape(p, '\')  )
+      let $LIBPATH = p . $LIBPATH
+    " endif
+  endfor
+
+endfunction
+
+" Description:
 "   Compile the PCH file
 " Depends on dir:
 "     D:\work\C_CPP
 " Depends on files:
 "        pch_compile_out.txt  (readable-writable)
 "        my_precompile_header.cpp (readable)
-function! <SID>:Compile_PCH()
-  call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
+function! <SID>:Compile_PCH(vc_platform)
+  if a:vc_platform == ''
+    call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
+    let cc_full_path = s:cl_full_path
+  elseif a:vc_platform == 'x64'
+    call <SID>:Set_VC_x64_Working_Env_Variable(s:VS_Install_DIR)
+    let cc_full_path = s:cl_x64_full_path
+  endif
+
   exe 'silent! !del ' . s:pch_fname
 
   if v:shell_error
@@ -156,7 +223,7 @@ function! <SID>:Compile_PCH()
 
   " ChangeLog: forget to save the .h file before compiling
   silent update
-  exe 'silent! !"' . s:cl_full_path . '" /W4 /MD /WX /Zi /wd4793 /Yc /c /EHa ' . s:pch_cpp_fname .
+  exe 'silent! !"' . cc_full_path . '" /W4 /MD /WX /Zi /wd4793 /Yc /c /EHa ' . s:pch_cpp_fname .
         \ ' 2>&1 >'. s:pch_compile_out
   let is_compile_ok = v:shell_error
   let has_2_win = tabpagewinnr( tabpagenr(), '$' ) > 1
@@ -317,6 +384,9 @@ function! <SID>:Compile_AND_Run(cc)
   if a:cc == 'msvc' 
     call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
     let cc_options = <SID>:Get_CC_OPTIONS('CL_OPTIONS')
+  elseif a:cc == 'msvc_x64' 
+    call <SID>:Set_VC_x64_Working_Env_Variable(s:VS_Install_DIR)
+    let cc_options = <SID>:Get_CC_OPTIONS('CL_OPTIONS')
   elseif a:cc == 'gcc'
     call <SID>:Set_GCC_Working_Env_Variable()
     let cc_options = <SID>:Get_CC_OPTIONS('CC_OPTIONS')
@@ -355,29 +425,33 @@ function! <SID>:Compile_AND_Run(cc)
 
   " disable 4076 warning to avoid 
   " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
-  if( a:cc == "msvc")
+  if (a:cc == "msvc")
     let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076',
           \ s:cl_full_path,
           \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj)
-  elseif( a:cc == "icc")
-	" Now I don't know about precompiled header support of icc and the
-	" compatibility with VC, so just disable it
-	let use_pch = ''
+  elseif (a:cc == 'msvc_x64')
+    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076',
+          \ s:cl_x64_full_path,
+          \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj)
+  elseif ( a:cc == "icc")
+    " Now I don't know about precompiled header support of icc and the
+    " compatibility with VC, so just disable it
+    let use_pch = ''
     let cc_cmd_line = printf('"%s" /W4     /Zi /MD %s /EHa %s %s                      ',
           \ s:ICC_full_path,
           \ use_pch, cc_options, s:cpp_snippet_fname )
-  elseif( a:cc == "gcc")
+  elseif ( a:cc == "gcc")
     let exe_output = substitute(s:cpp_snippet_fname, '\.cpp$', '.exe', 'i')
     let cc_cmd_line = printf('"%s" -o"%s" -Wno-deprecated -Wall -g %s -I"%s" %s %s', s:exe_gcc, exe_output,
           \ cc_options,
           \ substitute(s:Boost_root, '\\$', '', ''), cc_options, s:cpp_snippet_fname)
   elseif( a:cc == "java")
-	  let mockito_jar = 'mockito-all-1.9.5.jar'
-	  let mockito_jar_full_name = substitute(s:java_snippet_fname, '\(^\|[\\/]\)[^\\/]*$', '\1' . mockito_jar, '')
-	  let extra_jar = ''
-	  if filereadable(mockito_jar_full_name)
-		  let extra_jar = printf('-classpath "%s"', mockito_jar_full_name)
-	  endif
+      let mockito_jar = 'mockito-all-1.9.5.jar'
+      let mockito_jar_full_name = substitute(s:java_snippet_fname, '\(^\|[\\/]\)[^\\/]*$', '\1' . mockito_jar, '')
+      let extra_jar = ''
+      if filereadable(mockito_jar_full_name)
+          let extra_jar = printf('-classpath "%s"', mockito_jar_full_name)
+      endif
     let cc_cmd_line = printf('javac %s %s %s', extra_jar, cc_options, s:java_snippet_fname)
   endif
 
@@ -401,8 +475,8 @@ function! <SID>:Compile_AND_Run(cc)
   endif
 
   if a:cc == 'java' && ! filereadable( substitute(s:java_snippet_fname, '\.java', '.class', '') )
-	  echo "not exist class file [" . substitute(s:java_snippet_fname, '\.java', '.class', '')  . ']'
-	  return
+      echo "not exist class file [" . substitute(s:java_snippet_fname, '\.java', '.class', '')  . ']'
+      return
   endif
 
   if filereadable( s:shell_error )
@@ -496,7 +570,8 @@ endfunction
 "    AND, register a buffer-specific <F5> to compile the PCH file
 function! <SID>:Edit_Precompiled_Header()
   exe 'tabedit ' . s:pch_header_fname
-  map <buffer> <F5> :call <SID>:Compile_PCH()<CR>
+  map <buffer> <F5> :call <SID>:Compile_PCH('')<CR>
+  map <buffer> <S-F5> :call <SID>:Compile_PCH('x64')<CR>
 endfunction
 
 " Description: switch to D:\work\C_CPP and open a new file on a new tabpage
@@ -511,34 +586,35 @@ function! <SID>:Edit_Snippet_Code (template_file)
   tab new
   let b:is_cpp_snippet=1
   if a:template_file =~ '\.cpp$'
-	  set ft=cpp
+      set ft=cpp
   elseif a:template_file =~ '\.java$'
-	  set ft=java
+      set ft=java
   endif
   exe 'lcd ' . s:working_DIR
   exe '0r ' . s:working_DIR . a:template_file
   1/Begin your code/+2
 
-  exe 'noremap <buffer> <silent> <F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
-  exe 'noremap <buffer> <silent> <F6> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
-  exe 'noremap <buffer> <silent> <F7> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
-  exe 'noremap <buffer> <silent> <F8> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
-  exe 'noremap <buffer> <silent> <F4> :cd ' . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
-  exe 'noremap <buffer> <silent> <F9> :cd ' . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
+  exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
+  exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
+  exe 'noremap <buffer> <silent> <F6> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
+  exe 'noremap <buffer> <silent> <F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
+  exe 'noremap <buffer> <silent> <F8> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
+  exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
+  exe 'noremap <buffer> <silent> <F9> :cd '   . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
   if a:template_file =~ '\.java$'
-	  noremap <buffer> <silent> <C_K><C-I> <F8>
+      noremap <buffer> <silent> <C_K><C-I> <F8>
   else
-	  exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
-				  \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+      exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
+                  \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
   endif
 endfunction
 
 function! <SID>:Keep_working_dir()
-	if b:is_cpp_snippet != 1
-		finish
-	endif
+    if b:is_cpp_snippet != 1
+        finish
+    endif
 
-	exe 'lcd ' . s:working_DIR
+    exe 'lcd ' . s:working_DIR
 endfunction
 
 " Register the public interface
