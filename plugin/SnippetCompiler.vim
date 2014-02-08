@@ -1,6 +1,6 @@
 
 " Note: ALL the dir variable has a tailing \ character
-let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'E:\work\C_CPP\'
+let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'D:\work\C_CPP\'
 let s:template_cpp      = s:working_DIR . 'Default.cpp'
 let s:template_java     = s:working_DIR . 'Default.java'
 let s:compile_out       = s:working_DIR . 'compile_output.txt'
@@ -10,8 +10,8 @@ let s:pch_obj_fname     = s:working_DIR . 'my_precompile_header.obj'
 let s:cpp_snippet_fname = s:working_DIR . 'CPP_Snippet.cpp'
 let s:java_snippet_fname = substitute(s:cpp_snippet_fname, '\.cpp$', '.java', 'i')
 let s:exe_snippet_fname = s:working_DIR . 'CPP_Snippet.exe'
-let s:exe_pclint_fname  = has('unix') ? 'flint' : 'e:\software\case\lint\PC.Lint.v8.00e\lint.bat'
-let s:gcc_dir           = has('unix') ? '' : 'E:\software\compiler\C_C++\MinGW\bin\'
+let s:exe_pclint_fname  = has('unix') ? 'flint' : 'D:\work\PC.Lint.v9\lint.bat'
+let s:gcc_dir           = has('unix') ? '' : 'D:\work\mingw64\bin\'
 "let s:gcc_dir           = has('unix') ? '' : 'P:\MinGW\bin\'
 let s:exe_gcc           = s:gcc_dir . ( has('unix') ? 'g++' : 'g++.exe' )
 let s:pch_fname         = s:working_DIR . 'FrequentlyUsedHeaders.PCH'
@@ -29,7 +29,7 @@ let s:origin_LIB        = $LIB
 let s:origin_LIBPATH    = $LIBPATH
 
 " Comment line to switch between VC2008/VC2010
-let s:VS2008_Install_DIR= 'D:\Program Files\Microsoft Visual Studio 9.0\'
+let s:VS2008_Install_DIR= 'C:\Program Files\Microsoft Visual Studio 9.0\'
 let s:VS2010_Install_DIR= 'C:\Program Files (x86)\Microsoft Visual Studio 10.0\'
 let s:VS_Install_DIR    = s:VS2010_Install_DIR
 let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
@@ -40,7 +40,7 @@ let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
 " boost install dir should be used as $INCLUDE directly, gcc -I"E:\work\boost\boost_1_35_0\" won't work
 " but bootst's .H file contains fixed lib hint comment, so must keep \
 " as last char, for the gcc case should remove the last \ on-the-way
-let s:Boost_root        = 'E:\work\boost\boost_1_35_0\'
+let s:Boost_root        = 'D:\work\boost\boost_1_35_0\'
 let s:Win_SDK_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v6.0A\'
 let s:Win_SDK_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\'
 
@@ -322,7 +322,7 @@ function! <SID>:Append_lines_from(file, start_line)
     echo len(lines_to_append) . " lines to append"
     " Go to the last line and append the lines
     norm GYp
-    :s#.*#\=escape(join(lines_to_append, "\n") , '\')#
+    :s#.*#\=join(lines_to_append, "\n")#
     redraw
   endif
   return len(all_lines)
@@ -367,6 +367,21 @@ function! <SID>:Get_CC_OPTIONS(cc)
   return pure_cc_options
 endfunction
 
+" Get the // LD_OPTIONS: extra compiler options if exists
+" The side effects: the :g command will change the current cursor position
+function! <SID>:Get_LD_OPTIONS()
+	let old_t = @t
+	let @t=''
+	silent g#^\s*/[/*]\s*LD_OPTIONS\s*:#y T
+	" Remove the leading // LD_OPTIONS:  or /* LD_OPTIONS 
+	let pure_ld_options = substitute(@t, '^\n\|\%(^\|\n\@<=\)\s*/[/*]\s*LD_OPTIONS\s*:\s*', '', 'g')
+	" Remove the interleaving \n characters
+	let pure_ld_options = substitute(pure_ld_options, '\s*\%(\*/\)\?\s*\n', ' ', 'g')
+	" Restore the register t
+	let @t = old_t
+	return pure_ld_options
+endfunction
+
 " Compile the D:\work\C_CPP\CPP_Snippet.cpp  program
 " AND
 " Run it if compiled OK
@@ -399,6 +414,7 @@ function! <SID>:Compile_AND_Run(cc)
   else
     echo "Do you forget to set environment for compiler [" . a:cc . "]"
   endif
+  let ld_options = <SID>:Get_LD_OPTIONS()
 
   let snippet_fname = (a:cc == 'java') ? s:java_snippet_fname : s:cpp_snippet_fname
   call <SID>:Save_to_Snippet_file(snippet_fname)
@@ -426,13 +442,13 @@ function! <SID>:Compile_AND_Run(cc)
   " disable 4076 warning to avoid 
   " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
   if (a:cc == "msvc")
-    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076',
+    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
           \ s:cl_full_path,
-          \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj)
+          \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif (a:cc == 'msvc_x64')
-    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076',
+    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
           \ s:cl_x64_full_path,
-          \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj)
+          \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif ( a:cc == "icc")
     " Now I don't know about precompiled header support of icc and the
     " compatibility with VC, so just disable it
@@ -459,7 +475,7 @@ function! <SID>:Compile_AND_Run(cc)
   let $VIM_CPP_SNIPPET_COMPILER_ENCODING = (&encoding == "utf-8")
 
   let line = "============= Compling: [" . cc_cmd_line . "]...=========="
-  1s#.*#\=escape(line, '\')
+  1s#.*#\=line
   redraw
 
   let cmd_line = printf('silent! !start %s /done %s C %s %s',  s:my_vim_shell, s:working_DIR,
