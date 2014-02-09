@@ -15,7 +15,6 @@ option casemap :none
 foo PROC stdcall uses ebx ecx edx esi edi, x:DWORD, y:DWORD
 ;{
     CHAR_BIT equ 8
-    LOCAL len: DWORD
     ; Begin your code
     mov eax, [x]
     add eax, [y]

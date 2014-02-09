@@ -28,10 +28,9 @@ bar PROC uses RBX RSI RDI, x:QWORD, y:QWORD
 ;{
 ; RCX: x, RDX:y
     CHAR_BIT equ 8
-    LOCAL len: DWORD
     ; Begin your code
-    mov rax, rcx
-    add rax, rdx
+    mov rax, x
+    add rax, y
 ret
 
 ;}
