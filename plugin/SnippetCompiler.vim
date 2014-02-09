@@ -303,18 +303,57 @@ function! <SID>:Save_to_Snippet_file(fname)
   call writefile(lines, a:fname)
 endfunction
 
+function! <SID>:Create_keymap_for_cpp()
+  exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
+  exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
+  exe 'noremap <buffer> <silent> <F6> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
+  exe 'noremap <buffer> <silent> <F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
+  exe 'noremap <buffer> <silent> <F9> :cd '   . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
+  exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
+  exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
+     \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+endfunction
+
+function! <SID>:Create_keymap_for_java()
+  exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
+endfunction
+
+function! <SID>:Create_keymap_for_asm32()
+ exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm32")<CR>'
+endfunction
+
+function! <SID>:Create_keymap_for_asm64()
+ exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm64")<CR>'
+endfunction
+
 " Description:
-"             If there exist more than one window on the current tab,
-"             switch to the bottom one.
-"             If not exist, split a new buffer under the current one,
-"             and switch to it.
-function! <SID>:Make_sure_switch_to_bottom_window()
+"    If there exist more than one window on the current tab,
+"    switch to the bottom one.
+"    If not exist, split a new buffer under the current one,
+"    and switch to it.
+" snippet_id: an id represents the target snippet: c++, java, asm32, asm64, lint
+"    , which determines the key map in the output window(when create
+"    new)
+function! <SID>:Make_sure_switch_to_bottom_window(snippet_id)
   if tabpagewinnr( tabpagenr(), '$' ) > 1
     " Go to the bottom window
     exe "norm \<C-W>b"
   else
     setlocal splitbelow
     new
+    if a:snippet_id == 'c++'
+        call <SID>:Create_keymap_for_cpp()
+    elseif a:snippet_id == 'java'
+        call <SID>:Create_keymap_for_java()
+    elseif a:snippet_id == 'asm32'
+        call <SID>:Create_keymap_for_asm32()
+    elseif a:snippet_id == 'asm64'
+        call <SID>:Create_keymap_for_asm64()
+    elseif a:snippet_id == 'lint'
+        " do nothing
+    else
+        echoerr "Unknown snippet id: [" . a:snippet_id . "], expected: c++,java,asm32,asm64,lint"
+    endif
   endif
 endfunction
 
@@ -401,6 +440,8 @@ endfunction
 "       CPP_Snippet.exe  (writable)
 "       compile_out.txt  (writable)
 function! <SID>:Compile_AND_Run(cc)
+  " make sure in the top window
+  exe "norm \<C-W>t"
   let old_view = winsaveview()
   let cc_options = ''
   if a:cc == 'msvc' 
@@ -440,7 +481,8 @@ function! <SID>:Compile_AND_Run(cc)
   call <SID>:DeleteFile( s:shell_done )
 
   call winrestview(old_view)
-  call <SID>:Make_sure_switch_to_bottom_window()
+  let snippet_id = ( (a:cc == 'java') ? 'java' : 'c++')
+  call <SID>:Make_sure_switch_to_bottom_window(snippet_id)
   " Delete the existing contents at first, then read the content of the redirect file in
   1,$d
   norm Yp
@@ -535,6 +577,8 @@ endfunction
 "       asm32/asm64 snippet file name  (writable)
 "       compile_out.txt  (writable)
 function! <SID>:CompileOnly(asm_spec)
+  " make sure in the top window
+  exe "norm \<C-W>t"
   let old_view = winsaveview()
   if a:asm_spec == 'asm32' 
     call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
@@ -555,7 +599,7 @@ function! <SID>:CompileOnly(asm_spec)
   call <SID>:DeleteFile( s:shell_done )
 
   call winrestview(old_view)
-  call <SID>:Make_sure_switch_to_bottom_window()
+  call <SID>:Make_sure_switch_to_bottom_window(a:asm_spec)
   " Delete the existing contents at first, then read the content of the redirect file in
   1,$d
   norm Yp
@@ -605,7 +649,7 @@ function! <SID>:PC_Lint_it()
 
   call <SID>:DeleteFile( s:shell_done )
   call <SID>:DeleteFile( s:compile_out )
-  call <SID>:Make_sure_switch_to_bottom_window()
+  call <SID>:Make_sure_switch_to_bottom_window('lint')
   1,$d
   $s#.*#========================== PC-Lint ....(PC-Lint is slow, please wait)  =================#
   redraw
@@ -704,19 +748,13 @@ function! <SID>:Edit_Snippet_Code (template_id)
   1/Begin your code/+2
 
   if a:template_id == 'c++'
-    exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
-    exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
-    exe 'noremap <buffer> <silent> <F6> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
-    exe 'noremap <buffer> <silent> <F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
-    exe 'noremap <buffer> <silent> <F9> :cd '   . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
-    exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
-    exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
-       \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+    call <SID>:Create_keymap_for_cpp()
   elseif a:template_id == 'java'
-    exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
-  elseif a:template_id =~ 'asm'
-   exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm32")<CR>'
-   exe 'noremap <buffer> <silent> <C-F8> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm64")<CR>'
+    call <SID>:Create_keymap_for_java()
+  elseif a:template_id == 'asm32'
+    call <SID>:Create_keymap_for_asm32()
+  elseif a:template_id == 'asm64'
+    call <SID>:Create_keymap_for_asm64()
   endif
 endfunction
 
