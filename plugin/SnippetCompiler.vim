@@ -303,6 +303,15 @@ function! <SID>:Save_to_Snippet_file(fname)
   call writefile(lines, a:fname)
 endfunction
 
+function! <SID>:Close_current_snippet()
+    let tab_id = tabpagenr()
+    :q!
+    " It's possible current snippet session has only one buffer
+    if tab_id == tabpagenr()
+        :q!
+    endif
+endfunction
+
 function! <SID>:Create_keymap_for_cpp()
   exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
   exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
@@ -312,18 +321,22 @@ function! <SID>:Create_keymap_for_cpp()
   exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
   exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
      \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+  noremap <buffer> <silent> ZA :call <SID>:Close_current_snippet()<CR>
 endfunction
 
 function! <SID>:Create_keymap_for_java()
   exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
+  noremap <buffer> <silent> ZA :call <SID>:Close_current_snippet()<CR>
 endfunction
 
 function! <SID>:Create_keymap_for_asm32()
- exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm32")<CR>'
+  exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm32")<CR>'
+  noremap <buffer> <silent> ZA :call <SID>:Close_current_snippet()<CR>
 endfunction
 
 function! <SID>:Create_keymap_for_asm64()
- exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm64")<CR>'
+  exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm64")<CR>'
+  noremap <buffer> <silent> ZA :call <SID>:Close_current_snippet()<CR>
 endfunction
 
 " Description:
