@@ -353,7 +353,8 @@ function! <SID>:Make_sure_switch_to_bottom_window(snippet_id)
     exe "norm \<C-W>b"
   else
     setlocal splitbelow
-    new
+    new [Output]
+    set buftype=nofile
     if a:snippet_id == 'c++'
         call <SID>:Create_keymap_for_cpp()
     elseif a:snippet_id == 'java'
@@ -743,7 +744,18 @@ endfunction
 " Depends on files:
 "   template_xx.###   (readable)
 function! <SID>:Edit_Snippet_Code (template_id)
-  tab new
+  let snippet_buf_name = ''
+  if a:template_id == 'c++'
+    let snippet_buf_name = 'C++ Snippet'
+  elseif a:template_id == 'java'
+    let snippet_buf_name = 'Java Snippet'
+  elseif a:template_id == 'asm32'
+    let snippet_buf_name = 'ASM-X86 Snippet'
+  elseif a:template_id == 'asm64'
+    let snippet_buf_name = 'ASM-64 Snippet'
+  endif
+  exe 'tab new ' . snippet_buf_name
+  set buftype=nofile
   let b:is_cpp_snippet=1
   let template_file = <SID>:get_template_file_name(a:template_id)
   if a:template_id == 'c++'
