@@ -2,12 +2,16 @@
 " Note: ALL the dir variable has a tailing \ character
 let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'D:\work\C_CPP\'
 let s:template_cpp      = s:working_DIR . 'Default.cpp'
+let s:template_asm32    = s:working_DIR . 'default_32bit.asm'
+let s:template_asm64    = s:working_DIR . 'default_64bit.asm'
 let s:template_java     = s:working_DIR . 'Default.java'
 let s:compile_out       = s:working_DIR . 'compile_output.txt'
 let s:pch_compile_out   = s:working_DIR . 'pch_compile_out.txt'
 let s:pch_cpp_fname     = s:working_DIR . 'my_precompile_header.cpp'
 let s:pch_obj_fname     = s:working_DIR . 'my_precompile_header.obj'
 let s:cpp_snippet_fname = s:working_DIR . 'CPP_Snippet.cpp'
+let s:asm32_snippet_fname = s:working_DIR . 'asm32_snippet.asm'
+let s:asm64_snippet_fname = s:working_DIR . 'asm64_snippet.asm'
 let s:java_snippet_fname = substitute(s:cpp_snippet_fname, '\.cpp$', '.java', 'i')
 let s:exe_snippet_fname = s:working_DIR . 'CPP_Snippet.exe'
 let s:exe_pclint_fname  = has('unix') ? 'flint' : 'D:\work\PC.Lint.v9\lint.bat'
@@ -34,6 +38,8 @@ let s:VS2010_Install_DIR= 'C:\Program Files (x86)\Microsoft Visual Studio 10.0\'
 let s:VS_Install_DIR    = s:VS2010_Install_DIR
 let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
 let s:cl_x64_full_path  = s:VS_Install_DIR . 'VC\Bin\amd64\cl.exe'
+let s:ml_full_path      = s:VS_Install_DIR . 'VC\Bin\ml.exe'
+let s:ml64_full_path    = s:VS_Install_DIR . 'VC\Bin\amd64\ml64.exe'
 " Intel ICC compiler
 let s:ICC_Install_DIR   = 'C:\Program Files\Intel\Compiler\11.1\048\'
 let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
@@ -520,6 +526,69 @@ function! <SID>:Compile_AND_Run(cc)
   $
 endfunction
 
+" Compile the asm file only
+" Anyway, switch to or open an error window in the current tabpage on the bottom,
+" The redirection file is D:\work\C_CPP\compile_out.txt
+" Depends on dir D:\work\C_CPP
+" Depends on files:
+"       asm32/asm64 snippet file name  (writable)
+"       compile_out.txt  (writable)
+function! <SID>:CompileOnly(asm_spec)
+  let old_view = winsaveview()
+  if a:asm_spec == 'asm32' 
+    call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
+  elseif a:asm_spec == 'asm64' 
+    call <SID>:Set_VC_x64_Working_Env_Variable(s:VS_Install_DIR)
+  else
+    echo "Do you forget to set environment for compiler [" . a:asm_spec . "]"
+  endif
+
+  let snippet_fname = (a:asm_spec == 'asm32') ? s:asm32_snippet_fname : s:asm64_snippet_fname
+  call <SID>:Save_to_Snippet_file(snippet_fname)
+
+  let v:errmsg = ""
+  call <SID>:DeleteFile( s:exe_snippet_fname )
+  call <SID>:DeleteFile( s:compile_out )
+  " Clear the error
+  call <SID>:DeleteFile( s:shell_error )
+  call <SID>:DeleteFile( s:shell_done )
+
+  call winrestview(old_view)
+  call <SID>:Make_sure_switch_to_bottom_window()
+  " Delete the existing contents at first, then read the content of the redirect file in
+  1,$d
+  norm Yp
+  redraw
+
+  " disable 4076 warning to avoid 
+  " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
+  if (a:asm_spec == "asm32")
+    let cc_cmd_line = printf('"%s" /W3 /WX /Zi %s', s:ml_full_path, snippet_fname )
+  elseif (a:asm_spec == 'asm64')
+    let cc_cmd_line = printf('"%s" /W3 /WX /Zi %s', s:ml64_full_path, snippet_fname )
+  endif
+
+  " an environment variable to communication with vimshell.cs
+  let $VIM_CPP_SNIPPET_COMPILER_ENCODING = (&encoding == "utf-8")
+
+  let line = "============= Compling: [" . cc_cmd_line . "]...=========="
+  1s#.*#\=line
+  redraw
+
+  let cmd_line = printf('silent! !start %s /done %s C %s %s',  s:my_vim_shell, s:working_DIR,
+        \ s:compile_out , cc_cmd_line)
+  exe cmd_line
+  let i = 0
+
+  call <SID>:Append_lines(s:shell_done, s:compile_out)
+
+  if filereadable( s:shell_error )
+    return
+  endif
+
+  $
+endfunction
+
 " Description:
 "             Run pc-lint on the program and capture the output
 function! <SID>:PC_Lint_it()
@@ -590,38 +659,63 @@ function! <SID>:Edit_Precompiled_Header()
   map <buffer> <S-F5> :call <SID>:Compile_PCH('x64')<CR>
 endfunction
 
-" Description: switch to D:\work\C_CPP and open a new file on a new tabpage
-"    with the "Default.cpp" as the default content
-"    register buffer-specific <F5> to compile and run the snippet file
-"    register buffer-specific <C-K><C-I> to edit the pre-compiled file
+function! <SID>:get_template_file_name(id)
+    if a:id == 'c++'
+        return s:template_cpp
+    elseif a:id == 'java'
+        return s:template_java
+    elseif a:id == 'asm32'
+        return s:template_asm32
+    elseif a:id == 'asm64'
+        return s:template_asm64
+    else
+        echoerr "not defined template file id: [" . a:id . "]"
+        return ''
+    endif
+endfunction
+
+" Description: switch to snippet working dir(D:\work\C_CPP) and open a
+" new file on a new tabpage with the "Default.cpp" as the default
+" content
+"    register buffer-specific <F5> to compile and optionally run the snippet file
+"    register buffer-specific <C-K><C-I> to edit the pre-compiled
+"    file(only for C++)
 " Depends on dir:
-" D:\work\C_CPP
+" snippet working dir s:working_DIR(D:\work\C_CPP)
 " Depends on files:
-"   Default.cpp   (readable)
-function! <SID>:Edit_Snippet_Code (template_file)
+"   template_xx.###   (readable)
+function! <SID>:Edit_Snippet_Code (template_id)
   tab new
   let b:is_cpp_snippet=1
-  if a:template_file =~ '\.cpp$'
+  let template_file = <SID>:get_template_file_name(a:template_id)
+  if a:template_id == 'c++'
       set ft=cpp
-  elseif a:template_file =~ '\.java$'
+  elseif a:template_id == 'java'
       set ft=java
+  elseif a:template_id =~ 'asm'
+      set ft=masm
+  else
+      set ft=text
   endif
+
   exe 'lcd ' . s:working_DIR
-  exe '0r ' . s:working_DIR . a:template_file
+  exe '0r ' . template_file
   1/Begin your code/+2
 
-  exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
-  exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
-  exe 'noremap <buffer> <silent> <F6> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
-  exe 'noremap <buffer> <silent> <F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
-  exe 'noremap <buffer> <silent> <F8> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
-  exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
-  exe 'noremap <buffer> <silent> <F9> :cd '   . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
-  if a:template_file =~ '\.java$'
-      noremap <buffer> <silent> <C_K><C-I> <F8>
-  else
-      exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
-                  \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+  if a:template_id == 'c++'
+    exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc")<CR>'
+    exe 'noremap <buffer> <silent> <S-F5> :cd ' . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("msvc_x64")<CR>'
+    exe 'noremap <buffer> <silent> <F6> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("gcc")<CR>'
+    exe 'noremap <buffer> <silent> <F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("icc")<CR>'
+    exe 'noremap <buffer> <silent> <F9> :cd '   . s:working_DIR . ' <Bar> call <SID>:PC_Lint_it()<CR>'
+    exe 'noremap <buffer> <silent> <F4> :cd '   . s:working_DIR . ' <Bar> call <SID>:Toggle_W0_W4()<CR>'
+    exe 'noremap <buffer> <silent> <C-K><C-I> :cd ' . s:working_DIR .
+       \  ' <Bar> call <SID>:Edit_Precompiled_Header()<CR>'
+  elseif a:template_id == 'java'
+    exe 'noremap <buffer> <silent> <F5> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("java")<CR>'
+  elseif a:template_id =~ 'asm'
+   exe 'noremap <buffer> <silent> <C-F7> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm32")<CR>'
+   exe 'noremap <buffer> <silent> <C-F8> :cd '   . s:working_DIR . ' <Bar> call <SID>:CompileOnly("asm64")<CR>'
   endif
 endfunction
 
@@ -635,8 +729,10 @@ endfunction
 
 " Register the public interface
 autocmd WinEnter call <SID>:Keep_working_dir()
-noremap <C-K><C-P> :call <SID>:Edit_Snippet_Code('Default.cpp')<CR>
-noremap <C-K><C-J> :call <SID>:Edit_Snippet_Code('Default.java')<CR>
-command! EditCppSnippetCode call <SID>:EditCppSnippetCode()
+noremap <C-K><C-P> :call <SID>:Edit_Snippet_Code('c++')<CR>
+noremap <C-K><C-M> :call <SID>:Edit_Snippet_Code('asm32')<CR>
+noremap <C-K><C-N> :call <SID>:Edit_Snippet_Code('asm64')<CR>
+noremap <C-K><C-J> :call <SID>:Edit_Snippet_Code('java')<CR>
+command! EditCppSnippetCode call <SID>:Edit_Snippet_Code('c++')
 command! EditPrecompiledHeader call <SID>:Edit_Precompiled_Header()
 command! -nargs=1 DeleteFile call <SID>:DeleteFile(<f-args>)
