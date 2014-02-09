@@ -17,7 +17,7 @@ let s:exe_snippet_fname = s:working_DIR . 'CPP_Snippet.exe'
 let s:exe_pclint_fname  = has('unix') ? 'flint' : 'D:\work\PC.Lint.v9\lint.bat'
 let s:gcc_dir           = has('unix') ? '' : 'D:\work\mingw64\bin\'
 "let s:gcc_dir           = has('unix') ? '' : 'P:\MinGW\bin\'
-let s:exe_gcc           = s:gcc_dir . ( has('unix') ? 'g++' : 'g++.exe' )
+let s:exe_gcc           = s:gcc_dir . ( has('unix') ? expand('~/gcc/bin/') .'g++' : 'g++.exe' )
 let s:pch_fname         = s:working_DIR . 'FrequentlyUsedHeaders.PCH'
 let s:pch_header_fname  = s:working_DIR . 'FrequentlyUsedHeaders.h'
 let s:shell_done        = s:working_DIR . 'done.txt'
@@ -56,7 +56,7 @@ let s:Win_SDK_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\'
 " last default compiler option(except /link ... in VC) on the command
 " line
 
-if ! filereadable(s:my_vim_shell)
+if (has('win32') || has('win64')) && ! filereadable(s:my_vim_shell)
   echohl ErrorMsg 
   echoerr printf("the private vim command shell [%s] not exist!" , s:my_vim_shell)
   echohl Normal
@@ -457,6 +457,22 @@ function! <SID>:Get_LD_OPTIONS()
 	return pure_ld_options
 endfunction
 
+function! <SID>:Compile_AND_Run_with_python(aout)
+  :py snippet_cpp_compile_args = []
+  :py snippet_cpp_compile_args.append( vim.eval('s:exe_gcc'))
+  :py snippet_cpp_compile_args.append( '-o' + vim.eval('a:aout') )
+  :let clean_boost_inc = substitute(s:Boost_root, '\\$', '', '')
+  :py snippet_cpp_compile_args.append( '-Wno-deprecated')
+  :py snippet_cpp_compile_args.append( '-Wall')
+  :py snippet_cpp_compile_args.append( '-g')
+  :py snippet_cpp_compile_args.append( '-I')
+  :py snippet_cpp_compile_args.append( vim.eval('clean_boost_inc') )
+  :py snippet_cpp_compile_args.append( vim.eval('s:cpp_snippet_fname'))
+  :py exe_args = [ vim.eval('a:aout') ]
+  :py cmd_runner_args=(snippet_cpp_compile_args, exe_args)
+  :py cmd_runner( cmd_runner_args )
+endfunction
+
 " Compile the D:\work\C_CPP\CPP_Snippet.cpp  program
 " AND
 " Run it if compiled OK
@@ -558,7 +574,13 @@ function! <SID>:Compile_AND_Run(cc)
 
   let cmd_line = printf('silent! !start %s /done %s C %s %s',  s:my_vim_shell, s:working_DIR,
         \ s:compile_out , cc_cmd_line)
-  exe cmd_line
+  if (has('win32') || has('win64'))
+    exe cmd_line
+  else
+    call <SID>:Compile_AND_Run_with_python(exe_output)
+    return
+  endif
+
   let i = 0
 
   call <SID>:Append_lines(s:shell_done, s:compile_out)
@@ -662,29 +684,40 @@ function! <SID>:CompileOnly(asm_spec)
   $
 endfunction
 
-" Description:
-"             Run pc-lint on the program and capture the output
+" Description: Run pc-lint on the program and capture the output
 function! <SID>:PC_Lint_it()
-  if ! filereadable(s:exe_pclint_fname)
+  if (has('win32') || has('win64')) && ! filereadable(s:exe_pclint_fname)
     echohl ErrorMsg 
     echoerr "the PC-Lint program [" . s:exe_pclint_fname . '] not exist'
     echohl Normal
     return
   endif
 
-  call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
+  if (has('win32') || has('win64'))
+    call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
+  endif
+
   call <SID>:Save_to_Snippet_file(s:cpp_snippet_fname)
 
-  call <SID>:DeleteFile( s:shell_done )
-  call <SID>:DeleteFile( s:compile_out )
   call <SID>:Make_sure_switch_to_bottom_window('lint')
   1,$d
   $s#.*#========================== PC-Lint ....(PC-Lint is slow, please wait)  =================#
   redraw
-  exe printf('silent! !start %s /done %s C %s %s %s', s:my_vim_shell,
-        \ s:working_DIR, s:compile_out, s:exe_pclint_fname, s:cpp_snippet_fname)
 
-  call <SID>:Append_lines(s:shell_done, s:compile_out)
+  if (has('win32') || has('win64'))
+    call <SID>:DeleteFile( s:shell_done )
+    call <SID>:DeleteFile( s:compile_out )
+    exe printf('silent! !start %s /done %s C %s %s %s', s:my_vim_shell,
+          \ s:working_DIR, s:compile_out, s:exe_pclint_fname, s:cpp_snippet_fname)
+
+    call <SID>:Append_lines(s:shell_done, s:compile_out)
+  else
+    :py snippet_cpp_lint_args = []
+    :py snippet_cpp_lint_args.append( vim.eval('s:exe_pclint_fname'))
+    :py snippet_cpp_lint_args.append( vim.eval('s:cpp_snippet_fname'))
+    :py cmd_runner_args = (snippet_cpp_lint_args, )
+    :py cmd_runner( cmd_runner_args )
+  endif
   " exe '$r ' . s:compile_out
 endfunction
 
