@@ -25,6 +25,7 @@ let s:shell_error       = s:working_DIR . 'VimShellError.txt'
 let s:batch_fname       = s:working_DIR . (has('unix') ? 'build_all.sh' : 'build_all.bat')
 " Get the output of ":scriptnames" in the scriptnames_output variable.
 let s:current_script_dir = expand("<sfile>:p:h") . (has('unix') ? '/' : '\')
+let s:current_script_file= expand("<sfile>:p")
 let s:my_vim_shell      = s:current_script_dir . 'VimShell.exe'
 " The initial LIB,INCLUDE environment variable
 let s:origin_PATH       = $PATH
@@ -727,6 +728,10 @@ function! <SID>:Keep_working_dir()
     exe 'lcd ' . s:working_DIR
 endfunction
 
+function! <SID>:Edit_Snippet_Compiler_Plugin()
+    exe 'tabe ' . s:current_script_file
+endfunction
+
 " Register the public interface
 autocmd WinEnter call <SID>:Keep_working_dir()
 noremap <C-K><C-P> :call <SID>:Edit_Snippet_Code('c++')<CR>
@@ -735,4 +740,5 @@ noremap <C-K><C-N> :call <SID>:Edit_Snippet_Code('asm64')<CR>
 noremap <C-K><C-J> :call <SID>:Edit_Snippet_Code('java')<CR>
 command! EditCppSnippetCode call <SID>:Edit_Snippet_Code('c++')
 command! EditPrecompiledHeader call <SID>:Edit_Precompiled_Header()
+command! EditSnippetCompilerPlugin call <SID>:Edit_Snippet_Compiler_Plugin()
 command! -nargs=1 DeleteFile call <SID>:DeleteFile(<f-args>)
