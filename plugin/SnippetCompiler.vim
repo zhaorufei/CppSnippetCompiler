@@ -380,12 +380,26 @@ function! <SID>:Append_lines_from(file, start_line)
   exe 'let lines_to_append = all_lines[' . a:start_line . ': -1]'
   if len(lines_to_append) > 0
     echo len(lines_to_append) . " lines to append"
-    " Go to the last line and append the lines
-    norm GYp
-    :s#.*#\=join(lines_to_append, "\n")#
+    " append the lines to end
+    call append(line('$'),  lines_to_append)
     redraw
   endif
   return len(all_lines)
+endfunction
+
+" Description:
+"   Append a [Success] or [Fail: 1] line based on the contents in
+"   done_file after command finished
+"   assert: done_file's first line contains "return: 0"
+function! <SID>:Append_Result(done_file)
+  let all_lines = readfile(a:done_file)
+  let result = []
+  if all_lines[0] =~ 'return:\s\+0\s*$'
+    let result = ['', "[Success]" ]
+  else
+    let result = ['', "[Failed] " . all_lines[0] ]
+  endif
+  call append(line('$'),  result)
 endfunction
 
 " Description:
@@ -408,6 +422,7 @@ function! <SID>:Append_lines(end_file, output_file)
   if filereadable(a:output_file)
     call <SID>:Append_lines_from(a:output_file, line_no)
   endif
+  call <SID>:Append_Result(a:end_file)
   echo "last line number: " . line_no
 endfunction
 
@@ -564,10 +579,9 @@ function! <SID>:Compile_AND_Run(cc)
 
   " Continue to execute the generated exe file if compiled OK
 
-  norm GYp
   " Add a blank line
   let msg_lines = ["", "========================== Run the Program  ================="]
-  $s#.*#\=msg_lines#
+  call append( line('$'),  msg_lines)
   redraw
 
   call <SID>:DeleteFile( s:shell_done )
@@ -622,9 +636,9 @@ function! <SID>:CompileOnly(asm_spec)
   " disable 4076 warning to avoid 
   " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
   if (a:asm_spec == "asm32")
-    let cc_cmd_line = printf('"%s" /W3 /WX /Zi %s', s:ml_full_path, snippet_fname )
+    let cc_cmd_line = printf('"%s" /W3 /WX /c /Zi %s', s:ml_full_path, snippet_fname )
   elseif (a:asm_spec == 'asm64')
-    let cc_cmd_line = printf('"%s" /W3 /WX /Zi %s', s:ml64_full_path, snippet_fname )
+    let cc_cmd_line = printf('"%s" /W3 /WX /c /Zi %s', s:ml64_full_path, snippet_fname )
   endif
 
   " an environment variable to communication with vimshell.cs
@@ -746,13 +760,13 @@ endfunction
 function! <SID>:Edit_Snippet_Code (template_id)
   let snippet_buf_name = ''
   if a:template_id == 'c++'
-    let snippet_buf_name = 'C++ Snippet'
+    let snippet_buf_name = '[C++ Snippet]'
   elseif a:template_id == 'java'
-    let snippet_buf_name = 'Java Snippet'
+    let snippet_buf_name = '[Java Snippet]'
   elseif a:template_id == 'asm32'
-    let snippet_buf_name = 'ASM-X86 Snippet'
+    let snippet_buf_name = '[ASM-X86 Snippet]'
   elseif a:template_id == 'asm64'
-    let snippet_buf_name = 'ASM-64 Snippet'
+    let snippet_buf_name = '[ASM-X64 Snippet]'
   endif
   exe 'tab new ' . snippet_buf_name
   set buftype=nofile
