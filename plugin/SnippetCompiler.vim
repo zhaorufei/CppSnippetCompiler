@@ -62,6 +62,10 @@ if (has('win32') || has('win64')) && ! filereadable(s:my_vim_shell)
   echohl Normal
 endif
 
+if has('unix') && has('python')
+  exe ":pyf " . s:current_script_dir . "cmd_runner.py"
+endif
+
 " Description:
 "    the script heavily depends on the GCC tools, this
 "    function set the appropriate environment variable PATH
@@ -577,7 +581,11 @@ function! <SID>:Compile_AND_Run(cc)
   if (has('win32') || has('win64'))
     exe cmd_line
   else
-    call <SID>:Compile_AND_Run_with_python(exe_output)
+    if has('python')
+      call <SID>:Compile_AND_Run_with_python(exe_output)
+    else
+        echoerr "Vim is not build with python support, aborted"
+    endif
     return
   endif
 
@@ -712,11 +720,15 @@ function! <SID>:PC_Lint_it()
 
     call <SID>:Append_lines(s:shell_done, s:compile_out)
   else
-    :py snippet_cpp_lint_args = []
-    :py snippet_cpp_lint_args.append( vim.eval('s:exe_pclint_fname'))
-    :py snippet_cpp_lint_args.append( vim.eval('s:cpp_snippet_fname'))
-    :py cmd_runner_args = (snippet_cpp_lint_args, )
-    :py cmd_runner( cmd_runner_args )
+    if has('python')
+      :py snippet_cpp_lint_args = []
+      :py snippet_cpp_lint_args.append( vim.eval('s:exe_pclint_fname'))
+      :py snippet_cpp_lint_args.append( vim.eval('s:cpp_snippet_fname'))
+      :py cmd_runner_args = (snippet_cpp_lint_args, )
+      :py cmd_runner( cmd_runner_args )
+    else
+      echoerr "Vim is not build with python support, aborted"
+    endif
   endif
   " exe '$r ' . s:compile_out
 endfunction
