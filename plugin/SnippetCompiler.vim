@@ -1,6 +1,6 @@
 
 " Note: ALL the dir variable has a tailing \ character
-let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'D:\work\C_CPP\'
+let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'E:\work\C_CPP\'
 let s:template_cpp      = s:working_DIR . 'Default.cpp'
 let s:template_asm32    = s:working_DIR . 'default_32bit.asm'
 let s:template_asm64    = s:working_DIR . 'default_64bit.asm'
@@ -827,6 +827,8 @@ function! <SID>:Edit_Snippet_Code (template_id)
       set ft=text
   endif
 
+  " Some other plugin may fill the buffer with template code
+  1,$d
   exe 'lcd ' . s:working_DIR
   exe '0r ' . template_file
   1/Begin your code/+2
