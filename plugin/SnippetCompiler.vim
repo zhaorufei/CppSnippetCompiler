@@ -36,11 +36,15 @@ let s:origin_LIBPATH    = $LIBPATH
 " Comment line to switch between VC2008/VC2010
 let s:VS2008_Install_DIR= 'C:\Program Files\Microsoft Visual Studio 9.0\'
 let s:VS2010_Install_DIR= 'C:\Program Files (x86)\Microsoft Visual Studio 10.0\'
-let s:VS_Install_DIR    = s:VS2010_Install_DIR
-let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
-let s:cl_x64_full_path  = s:VS_Install_DIR . 'VC\Bin\amd64\cl.exe'
-let s:ml_full_path      = s:VS_Install_DIR . 'VC\Bin\ml.exe'
-let s:ml64_full_path    = s:VS_Install_DIR . 'VC\Bin\amd64\ml64.exe'
+let s:VS2013_Install_DIR= 'D:\work\vs2013\'
+let s:VS_Install_DIR    = s:VS2013_Install_DIR
+function! <SID>:Init_VS_cmd()
+    let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
+    let s:cl_x64_full_path  = s:VS_Install_DIR . 'VC\Bin\amd64\cl.exe'
+    let s:ml_full_path      = s:VS_Install_DIR . 'VC\Bin\ml.exe'
+    let s:ml64_full_path    = s:VS_Install_DIR . 'VC\Bin\amd64\ml64.exe'
+endfunction
+call <SID>:Init_VS_cmd()
 " Intel ICC compiler
 let s:ICC_Install_DIR   = 'C:\Program Files\Intel\Compiler\11.1\048\'
 let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
@@ -48,8 +52,10 @@ let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
 " but bootst's .H file contains fixed lib hint comment, so must keep \
 " as last char, for the gcc case should remove the last \ on-the-way
 let s:Boost_root        = 'D:\work\boost\boost_1_35_0\'
-let s:Win_SDK_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v6.0A\'
-let s:Win_SDK_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\'
+let s:Win_SDK60_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v6.0A\'
+let s:Win_SDK70_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\'
+let s:Win_SDK81_DIR       = 'D:\work\WindowsKits-8.1\'
+let s:Win_SDK_DIR       = s:Win_SDK81_DIR
 
 " // CL_OPTIONS: /I.. /I..\include  
 " will be insert before the CPP_Snippet.cpp source file name, after the
@@ -103,6 +109,12 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
     \ a:vc_inst_dir . 'Common7\Tools;' ,
     \ a:vc_inst_dir . 'VC\VCPackages;' ]
   " Reset PATH to the origin PATH environment variable
+  let msvcr_path = glob(a:vc_inst_dir . 'vc\redist\x86\*\msvcr*.dll')
+  if len(msvcr_path) > 0
+      let last_bs = strridx(msvcr_path[0], '\')
+      let vc_redist_dir = strpart(msvcr_path[0], 0, last_bs)
+      call add(add_path, vc_redist_dir)
+  endif
   let $PATH = s:origin_PATH
   for p in add_path
     " ChangeLog: Always prepend to $PATH
@@ -113,8 +125,15 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
 
   let add_path = [a:vc_inst_dir . 'VC\ATLMFC\INCLUDE;' ,
     \ a:vc_inst_dir . 'VC\INCLUDE;' ,
-    \ s:Win_SDK_DIR    . 'include;' ,
     \ s:Boost_root . ';' ]
+  if filereadable( s:Win_SDK_DIR . 'include\windows.h')
+    call add(add_path, s:Win_SDK_DIR . 'include;' )
+  else " Assume windows Kits 8.1, which has sub-include path
+    call add(add_path, s:Win_SDK_DIR . 'include\shared;' )
+    call add(add_path, s:Win_SDK_DIR . 'include\um;' )
+    call add(add_path, s:Win_SDK_DIR . 'include\winrt;' )
+  endif
+
   let $INCLUDE = s:origin_INCLUDE
   for p in add_path
     " ChangeLog: Always prepend to $INCLUDE
@@ -126,9 +145,16 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB;' ,
     \ a:vc_inst_dir . 'VC\LIB;' ,
-    \ s:Win_SDK_DIR    . 'LIB;' ,
     \ s:Boost_root     . 'LIB;' ]
+
+  if filereadable( s:Win_SDK_DIR . 'lib\kernel32.lib')
+    call add(add_path, s:Win_SDK_DIR . 'LIB;' )
+  else " Assume windows Kits 8.1
+    call add(add_path, s:Win_SDK_DIR . 'LIB\winv6.3\um\x86;' )
+  endif
+
   let $LIB = s:origin_LIB
+
   for p in add_path
     " ChangeLog: Always prepend to $LIB
     " if ( $LIB !~? '\%(^\|;\)' . escape(p, '\')  )
@@ -162,6 +188,12 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
     \ a:vc_inst_dir . 'Common7\Tools;' ,
     \ a:vc_inst_dir . 'VC\VCPackages;' ]
   " Reset PATH to the origin PATH environment variable
+  let msvcr_path = glob(a:vc_inst_dir . 'vc\redist\x64\*\msvcr*.dll')
+  if len(msvcr_path) > 0
+      let last_bs = strridx(msvcr_path[0], '\')
+      let vc_redist_dir = strpart(msvcr_path[0], 0, last_bs)
+      call add(add_path, vc_redist_dir)
+  endif
   let $PATH = s:origin_PATH
   for p in add_path
     " ChangeLog: Always prepend to $PATH
@@ -172,8 +204,16 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
 
   let add_path = [a:vc_inst_dir . 'VC\ATLMFC\INCLUDE;' ,
     \ a:vc_inst_dir . 'VC\INCLUDE;' ,
-    \ s:Win_SDK_DIR    . 'include;' ,
     \ s:Boost_root . ';' ]
+
+  if filereadable( s:Win_SDK_DIR . 'include\windows.h')
+    call add(add_path, s:Win_SDK_DIR . 'include;' )
+  else " Assume windows Kits 8.1, which has sub-include path
+    call add(add_path, s:Win_SDK_DIR . 'include\shared;' )
+    call add(add_path, s:Win_SDK_DIR . 'include\um;' )
+    call add(add_path, s:Win_SDK_DIR . 'include\winrt;' )
+  endif
+
   let $INCLUDE = s:origin_INCLUDE
   for p in add_path
     " ChangeLog: Always prepend to $INCLUDE
@@ -185,8 +225,13 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB\amd64;' ,
     \ a:vc_inst_dir . 'VC\LIB\amd64;' ,
-    \ s:Win_SDK_DIR    . 'LIB\x64;' ,
     \ s:Boost_root     . 'LIB;' ]
+
+  if filereadable( s:Win_SDK_DIR . 'lib\x64\kernel32.lib')
+    call add(add_path, s:Win_SDK_DIR . 'LIB\x64;' )
+  else " Assume windows Kits 8.1
+    call add(add_path, s:Win_SDK_DIR . 'LIB\winv6.3\um\x64;' )
+  endif
   let $LIB = s:origin_LIB
   for p in add_path
     " ChangeLog: Always prepend to $LIB
@@ -216,7 +261,7 @@ endfunction
 " Depends on files:
 "        pch_compile_out.txt  (readable-writable)
 "        my_precompile_header.cpp (readable)
-function! <SID>:Compile_PCH(vc_platform)
+function! <SID>:Compile_PCH(keep_win, vc_platform)
   if a:vc_platform == ''
     call <SID>:Set_VC_Working_Env_Variable(s:VS_Install_DIR)
     let cc_full_path = s:cl_full_path
@@ -234,10 +279,10 @@ function! <SID>:Compile_PCH(vc_platform)
 
   " ChangeLog: forget to save the .h file before compiling
   silent update
-  exe 'silent! !"' . cc_full_path . '" /W4 /MD /WX /Zi /wd4793 /Yc /c /EHa ' . s:pch_cpp_fname .
+  exe 'silent! !"' . cc_full_path . '" /W4 /MD /Od /WX /Zi /wd4793 /Yc /c /EHa ' . s:pch_cpp_fname .
         \ ' 2>&1 >'. s:pch_compile_out
   let is_compile_ok = v:shell_error
-  let has_2_win = tabpagewinnr( tabpagenr(), '$' ) > 1
+  let has_2_win = a:keep_win == 0 && tabpagewinnr( tabpagenr(), '$' ) > 1
   " If Compile OK, there's no meaningful info, so just return
   if ! v:shell_error
     echo "Create precompiled file FrequentlyUsedHeaders.PCH OK"
@@ -511,6 +556,7 @@ function! <SID>:Compile_AND_Run(cc)
   else
     echo "Do you forget to set environment for compiler [" . a:cc . "]"
   endif
+  exe 'noremap <buffer> <silent> <C-K><C-K> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("' . a:cc. '")<CR>'
   let ld_options = <SID>:Get_LD_OPTIONS()
 
   let snippet_fname = (a:cc == 'java') ? s:java_snippet_fname : s:cpp_snippet_fname
@@ -532,6 +578,8 @@ function! <SID>:Compile_AND_Run(cc)
   call winrestview(old_view)
   let snippet_id = ( (a:cc == 'java') ? 'java' : 'c++')
   call <SID>:Make_sure_switch_to_bottom_window(snippet_id)
+  " repeat the map in output buffer
+  exe 'noremap <buffer> <silent> <C-K><C-K> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run("' . a:cc. '")<CR>'
   " Delete the existing contents at first, then read the content of the redirect file in
   1,$d
   norm Yp
@@ -540,11 +588,11 @@ function! <SID>:Compile_AND_Run(cc)
   " disable 4076 warning to avoid 
   " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
   if (a:cc == "msvc")
-    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
+    let cc_cmd_line = printf('"%s" /W4 /WX /Od /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
           \ s:cl_full_path,
           \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif (a:cc == 'msvc_x64')
-    let cc_cmd_line = printf('"%s" /W4 /WX /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
+    let cc_cmd_line = printf('"%s" /W4 /WX /Od /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
           \ s:cl_x64_full_path,
           \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif ( a:cc == "icc")
@@ -556,7 +604,7 @@ function! <SID>:Compile_AND_Run(cc)
           \ use_pch, cc_options, s:cpp_snippet_fname )
   elseif ( a:cc == "gcc")
     let exe_output = substitute(s:cpp_snippet_fname, '\.cpp$', '.exe', 'i')
-    let cc_cmd_line = printf('"%s" -o"%s" -Wno-deprecated -Wall -g %s -I"%s" %s %s', s:exe_gcc, exe_output,
+    let cc_cmd_line = printf('"%s" -o"%s" -std=c++11 -Wno-deprecated -Wall -g %s -I"%s" %s %s', s:exe_gcc, exe_output,
           \ cc_options,
           \ substitute(s:Boost_root, '\\$', '', ''), cc_options, s:cpp_snippet_fname)
   elseif( a:cc == "java")
@@ -773,8 +821,8 @@ endfunction
 "    AND, register a buffer-specific <F5> to compile the PCH file
 function! <SID>:Edit_Precompiled_Header()
   exe 'tabedit ' . s:pch_header_fname
-  map <buffer> <F5> :call <SID>:Compile_PCH('')<CR>
-  map <buffer> <S-F5> :call <SID>:Compile_PCH('x64')<CR>
+  map <buffer> <F5> :call <SID>:Compile_PCH(0, '')<CR>
+  map <buffer> <S-F5> :call <SID>:Compile_PCH(0, 'x64')<CR>
 endfunction
 
 function! <SID>:get_template_file_name(id)
@@ -854,6 +902,30 @@ function! <SID>:Edit_Snippet_Compiler_Plugin()
     exe 'tabe ' . s:current_script_file
 endfunction
 
+function! <SID>:Set_VS2010()
+    if s:VS_Install_DIR == s:VS2010_Install_DIR
+        return
+    endif
+
+    let s:VS_Install_DIR = s:VS2010_Install_DIR
+    let s:Win_SDK_DIR       = s:Win_SDK70_DIR
+    call <SID>:Init_VS_cmd()
+    exe 'lcd ' . s:working_DIR
+    call <SID>:Compile_PCH(1, '')
+endfunction
+
+function! <SID>:Set_VS2013()
+    if s:VS_Install_DIR == s:VS2013_Install_DIR
+        return
+    endif
+
+    let s:VS_Install_DIR = s:VS2013_Install_DIR
+    let s:Win_SDK_DIR       = s:Win_SDK81_DIR
+    call <SID>:Init_VS_cmd()
+    exe 'lcd ' . s:working_DIR
+    call <SID>:Compile_PCH(1, '')
+endfunction
+
 " Register the public interface
 autocmd WinEnter call <SID>:Keep_working_dir()
 noremap <C-K><C-P> :call <SID>:Edit_Snippet_Code('c++')<CR>
@@ -863,4 +935,6 @@ noremap <C-K><C-J> :call <SID>:Edit_Snippet_Code('java')<CR>
 command! EditCppSnippetCode call <SID>:Edit_Snippet_Code('c++')
 command! EditPrecompiledHeader call <SID>:Edit_Precompiled_Header()
 command! EditSnippetCompilerPlugin call <SID>:Edit_Snippet_Compiler_Plugin()
+command! SetVS2010 call <SID>:Set_VS2010()
+command! SetVS2013 call <SID>:Set_VS2013()
 command! -nargs=1 DeleteFile call <SID>:DeleteFile(<f-args>)
