@@ -1,6 +1,6 @@
 
 " Note: ALL the dir variable has a tailing \ character
-let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'E:\work\C_CPP\'
+let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'D:\work\C_CPP\'
 let s:template_cpp      = s:working_DIR . 'Default.cpp'
 let s:template_asm32    = s:working_DIR . 'default_32bit.asm'
 let s:template_asm64    = s:working_DIR . 'default_64bit.asm'
@@ -111,8 +111,8 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
   " Reset PATH to the origin PATH environment variable
   let msvcr_path = glob(a:vc_inst_dir . 'vc\redist\x86\*\msvcr*.dll')
   if len(msvcr_path) > 0
-      let last_bs = strridx(msvcr_path[0], '\')
-      let vc_redist_dir = strpart(msvcr_path[0], 0, last_bs)
+      let last_bs = strridx(msvcr_path, '\')
+      let vc_redist_dir = strpart(msvcr_path, 0, last_bs) . ';'
       call add(add_path, vc_redist_dir)
   endif
   let $PATH = s:origin_PATH
