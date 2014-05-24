@@ -496,6 +496,10 @@ endfunction
 "       compile_out.txt  (writable)
 function! <SID>:Compile_AND_Run(cc)
   " make sure in the top window
+  if mapcheck("<C-K><C-K>")
+	  unmap <C-K><C-K>
+  endif
+  exe 'noremap <buffer> <silent> <C-K><C-K> :cd '   . s:working_DIR . ' <Bar> call <SID>:Compile_AND_Run(' . a:cc . ')<CR>'
   exe "norm \<C-W>t"
   let old_view = winsaveview()
   let cc_options = ''
