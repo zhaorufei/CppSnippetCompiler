@@ -1,6 +1,6 @@
 
 " Note: ALL the dir variable has a tailing \ character
-let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'D:\work\C_CPP\'
+let s:working_DIR       = has('unix') ? glob("~/C_CPP/") : 'E:\work\C_CPP\'
 let s:template_cpp      = s:working_DIR . 'Default.cpp'
 let s:template_asm32    = s:working_DIR . 'default_32bit.asm'
 let s:template_asm64    = s:working_DIR . 'default_64bit.asm'
@@ -15,7 +15,7 @@ let s:asm64_snippet_fname = s:working_DIR . 'asm64_snippet.asm'
 let s:java_snippet_fname = substitute(s:cpp_snippet_fname, '\.cpp$', '.java', 'i')
 let s:exe_snippet_fname = s:working_DIR . 'CPP_Snippet.exe'
 let s:exe_pclint_fname  = has('unix') ? 'flint' : 'D:\work\PC.Lint.v9\lint.bat'
-let s:gcc_dir           = has('unix') ? '' : 'D:\work\mingw64\bin\'
+let s:gcc_dir           = has('unix') ? '' : 'E:\software\compiler\c_C++\Mingw64-4.8.2\bin\'
 "let s:gcc_dir           = has('unix') ? '' : 'P:\MinGW\bin\'
 let s:exe_gcc           = s:gcc_dir . ( has('unix') ? expand('~/gcc/bin/') .'g++' : 'g++.exe' )
 let s:pch_fname         = s:working_DIR . 'FrequentlyUsedHeaders.PCH'
@@ -27,16 +27,21 @@ let s:batch_fname       = s:working_DIR . (has('unix') ? 'build_all.sh' : 'build
 let s:current_script_dir = expand("<sfile>:p:h") . (has('unix') ? '/' : '\')
 let s:current_script_file= expand("<sfile>:p")
 let s:my_vim_shell      = s:current_script_dir . 'VimShell.exe'
-" The initial LIB,INCLUDE environment variable
-let s:origin_PATH       = $PATH
-let s:origin_INCLUDE    = $INCLUDE
-let s:origin_LIB        = $LIB
-let s:origin_LIBPATH    = $LIBPATH
+let s:cl_default_opt    = ' /W4 /WX /O2 /Zi /wd4793 /MD /EHa '
+" The initial PATH,LIB,LIBPATH,INCLUDE environment variable
+if !exists ("loaded_snippet_compiler")
+	let s:origin_PATH       = $PATH
+	let s:origin_INCLUDE    = $INCLUDE
+	let s:origin_LIB        = $LIB
+	let s:origin_LIBPATH    = $LIBPATH
+endif
+
+let loaded_snippet_compiler = 1
 
 " Comment line to switch between VC2008/VC2010
 let s:VS2008_Install_DIR= 'C:\Program Files\Microsoft Visual Studio 9.0\'
 let s:VS2010_Install_DIR= 'C:\Program Files (x86)\Microsoft Visual Studio 10.0\'
-let s:VS2013_Install_DIR= 'D:\work\vs2013\'
+let s:VS2013_Install_DIR= 'E:\work\vs2013\'
 let s:VS_Install_DIR    = s:VS2013_Install_DIR
 function! <SID>:Init_VS_cmd()
     let s:cl_full_path      = s:VS_Install_DIR . 'VC\Bin\cl.exe'
@@ -54,7 +59,7 @@ let s:ICC_full_path     = s:ICC_Install_DIR . 'bin\ia32\icl.exe'
 let s:Boost_root        = 'D:\work\boost\boost_1_35_0\'
 let s:Win_SDK60_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v6.0A\'
 let s:Win_SDK70_DIR       = 'c:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\'
-let s:Win_SDK81_DIR       = 'D:\work\WindowsKits-8.1\'
+let s:Win_SDK81_DIR       = 'E:\work\WinSDK_8.1\'
 let s:Win_SDK_DIR       = s:Win_SDK81_DIR
 
 " // CL_OPTIONS: /I.. /I..\include  
@@ -104,24 +109,19 @@ endfunction
 "    Calling it more than once is OK
 "    Most of the environment variable must be same as vcvars32.bat
 function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
-  let add_path =[a:vc_inst_dir . 'Common7\IDE;' ,
+  let add_path = [a:vc_inst_dir . 'Common7\IDE;' ,
     \ a:vc_inst_dir . 'VC\BIN;' ,
     \ a:vc_inst_dir . 'Common7\Tools;' ,
     \ a:vc_inst_dir . 'VC\VCPackages;' ]
-  " Reset PATH to the origin PATH environment variable
   let msvcr_path = glob(a:vc_inst_dir . 'vc\redist\x86\*\msvcr*.dll')
   if len(msvcr_path) > 0
       let last_bs = strridx(msvcr_path, '\')
       let vc_redist_dir = strpart(msvcr_path, 0, last_bs) . ';'
       call add(add_path, vc_redist_dir)
   endif
-  let $PATH = s:origin_PATH
-  for p in add_path
-    " ChangeLog: Always prepend to $PATH
-    "if ( $PATH !~? escape(p, '\') )
-      let $PATH= p . $PATH
-    "endif
-  endfor
+
+  let $PATH= join(add_path, '') . s:origin_PATH
+  let g:global_PATH = $PATH
 
   let add_path = [a:vc_inst_dir . 'VC\ATLMFC\INCLUDE;' ,
     \ a:vc_inst_dir . 'VC\INCLUDE;' ,
@@ -134,13 +134,7 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
     call add(add_path, s:Win_SDK_DIR . 'include\winrt;' )
   endif
 
-  let $INCLUDE = s:origin_INCLUDE
-  for p in add_path
-    " ChangeLog: Always prepend to $INCLUDE
-    " if ( $INCLUDE !~? '\%(^\|;\)' . escape(p, '\') )
-      let $INCLUDE = p . $INCLUDE
-    "endif
-  endfor
+  let $INCLUDE = join(add_path, '') . s:origin_INCLUDE
 
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB;' ,
@@ -153,26 +147,13 @@ function! <SID>:Set_VC_Working_Env_Variable(vc_inst_dir)
     call add(add_path, s:Win_SDK_DIR . 'LIB\winv6.3\um\x86;' )
   endif
 
-  let $LIB = s:origin_LIB
-
-  for p in add_path
-    " ChangeLog: Always prepend to $LIB
-    " if ( $LIB !~? '\%(^\|;\)' . escape(p, '\')  )
-      let $LIB = p . $LIB
-    "endif
-  endfor
+  let $LIB = join(add_path, '') . s:origin_LIB
 
   " for managed C++/CLI #using statement
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB;' ,
     \ a:vc_inst_dir . 'VC\LIB;' ]
-  let $LIBPATH = s:origin_LIBPATH
-  for p in add_path
-    " ChangeLog: Always prepend to $LIBPATH
-    " if ( $LIBPATH !~? '\%(^\|;\)' . escape(p, '\')  )
-      let $LIBPATH = p . $LIBPATH
-    " endif
-  endfor
+  let $LIBPATH = join(add_path, '') . s:origin_LIBPATH
 
 endfunction
 
@@ -190,17 +171,13 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
   " Reset PATH to the origin PATH environment variable
   let msvcr_path = glob(a:vc_inst_dir . 'vc\redist\x64\*\msvcr*.dll')
   if len(msvcr_path) > 0
-      let last_bs = strridx(msvcr_path[0], '\')
-      let vc_redist_dir = strpart(msvcr_path[0], 0, last_bs)
+      let last_bs = strridx(msvcr_path, '\')
+      let vc_redist_dir = strpart(msvcr_path, 0, last_bs) . ';'
       call add(add_path, vc_redist_dir)
   endif
-  let $PATH = s:origin_PATH
-  for p in add_path
-    " ChangeLog: Always prepend to $PATH
-    "if ( $PATH !~? escape(p, '\') )
-      let $PATH= p . $PATH
-    "endif
-  endfor
+
+  let $PATH= join(add_path, '') . s:origin_PATH
+  let g:global_PATH = $PATH
 
   let add_path = [a:vc_inst_dir . 'VC\ATLMFC\INCLUDE;' ,
     \ a:vc_inst_dir . 'VC\INCLUDE;' ,
@@ -214,13 +191,7 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
     call add(add_path, s:Win_SDK_DIR . 'include\winrt;' )
   endif
 
-  let $INCLUDE = s:origin_INCLUDE
-  for p in add_path
-    " ChangeLog: Always prepend to $INCLUDE
-    " if ( $INCLUDE !~? '\%(^\|;\)' . escape(p, '\') )
-      let $INCLUDE = p . $INCLUDE
-    "endif
-  endfor
+  let $INCLUDE = join(add_path, '') . s:origin_INCLUDE
 
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB\amd64;' ,
@@ -232,25 +203,15 @@ function! <SID>:Set_VC_x64_Working_Env_Variable(vc_inst_dir)
   else " Assume windows Kits 8.1
     call add(add_path, s:Win_SDK_DIR . 'LIB\winv6.3\um\x64;' )
   endif
-  let $LIB = s:origin_LIB
-  for p in add_path
-    " ChangeLog: Always prepend to $LIB
-    " if ( $LIB !~? '\%(^\|;\)' . escape(p, '\')  )
-      let $LIB = p . $LIB
-    "endif
-  endfor
+
+  let $LIB = join(add_path, '') . s:origin_LIB
 
   " for managed C++/CLI #using statement
   let add_path = [
     \ a:vc_inst_dir . 'VC\ATLMFC\LIB\amd64;' ,
     \ a:vc_inst_dir . 'VC\LIB\amd64;' ]
-  let $LIBPATH = s:origin_LIBPATH
-  for p in add_path
-    " ChangeLog: Always prepend to $LIBPATH
-    " if ( $LIBPATH !~? '\%(^\|;\)' . escape(p, '\')  )
-      let $LIBPATH = p . $LIBPATH
-    " endif
-  endfor
+
+  let $LIBPATH = join(add_path, '') . s:origin_LIBPATH
 
 endfunction
 
@@ -279,7 +240,7 @@ function! <SID>:Compile_PCH(keep_win, vc_platform)
 
   " ChangeLog: forget to save the .h file before compiling
   silent update
-  exe 'silent! !"' . cc_full_path . '" /W4 /MD /Od /WX /Zi /wd4793 /Yc /c /EHa ' . s:pch_cpp_fname .
+  exe 'silent! !"' . cc_full_path . '"' . s:cl_default_opt . '/Yc /c ' . s:pch_cpp_fname .
         \ ' 2>&1 >'. s:pch_compile_out
   let is_compile_ok = v:shell_error
   let has_2_win = a:keep_win == 0 && tabpagewinnr( tabpagenr(), '$' ) > 1
@@ -588,12 +549,12 @@ function! <SID>:Compile_AND_Run(cc)
   " disable 4076 warning to avoid 
   " LINK : warning LNK4076: invalid incremental status file 'CPP_Snippet.ilk'; linking nonincrementally
   if (a:cc == "msvc")
-    let cc_cmd_line = printf('"%s" /W4 /WX /Od /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
-          \ s:cl_full_path,
+    let cc_cmd_line = printf('"%s" %s %s %s %s %s /link /IGNORE:4076 %s',
+          \ s:cl_full_path, s:cl_default_opt, 
           \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif (a:cc == 'msvc_x64')
-    let cc_cmd_line = printf('"%s" /W4 /WX /Od /Zi /wd4793 /MD %s /EHa %s %s %s /link /IGNORE:4076 %s',
-          \ s:cl_x64_full_path,
+    let cc_cmd_line = printf('"%s" %s %s %s %s %s /link /IGNORE:4076 %s',
+          \ s:cl_x64_full_path, s:cl_default_opt,
           \ use_pch, cc_options, s:cpp_snippet_fname , use_pch_obj, ld_options)
   elseif ( a:cc == "icc")
     " Now I don't know about precompiled header support of icc and the
